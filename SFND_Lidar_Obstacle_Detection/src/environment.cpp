@@ -7,6 +7,8 @@
 #include "processPointClouds.h"
 // using templates for processPointClouds so also include .cpp to help linker
 #include "processPointClouds.cpp"
+#include "quiz/cluster/cluster.h"
+#include "quiz/cluster/cluster.cpp"
 
 std::vector<Car> initHighway(bool renderScene, pcl::visualization::PCLVisualizer::Ptr& viewer)
 {
@@ -128,20 +130,27 @@ void cityBlock(pcl::visualization::PCLVisualizer::Ptr& viewer)
     
 }
 // const and & are used for constant reference for memory efficiency with the variable not change ------ no.... inputCloud here show error with Const....
-void cityBlock_(pcl::visualization::PCLVisualizer::Ptr& viewer, ProcessPointClouds<pcl::PointXYZI>* pointProcessor, pcl::PointCloud<pcl::PointXYZI>::Ptr& inputCloud)
+void cityBlock_stream(pcl::visualization::PCLVisualizer::Ptr& viewer, ProcessPointClouds<pcl::PointXYZI>* pointProcessor, pcl::PointCloud<pcl::PointXYZI>::Ptr& inputCloud)
 {
-    // ProcessPointClouds<pcl::PointXYZI>* pointProcessor;
-    // pcl::PointCloud<pcl::PointXYZI>::Ptr inputCloud = pointProcessor.loadPcd("../src/sensors/data/pcd/data_1/0000000000.pcd");
+    
     inputCloud = pointProcessor->FilterCloud(inputCloud, 0.3, Eigen::Vector4f (-10, -5, -2, 1), Eigen::Vector4f (30, 8, 1, 1));
-    std::pair<pcl::PointCloud<pcl::PointXYZI>::Ptr, pcl::PointCloud<pcl::PointXYZI>::Ptr> segmentCloud = pointProcessor->SegmentPlane(inputCloud, 25, 0.3);
+    
+    // // "segment plane" based on PCL RANSAC or Own RANSAC
+    // std::pair<pcl::PointCloud<pcl::PointXYZI>::Ptr, pcl::PointCloud<pcl::PointXYZI>::Ptr> segmentCloud = pointProcessor->SegmentPlane(inputCloud, 25, 0.3);
+    std::pair<pcl::PointCloud<pcl::PointXYZI>::Ptr, pcl::PointCloud<pcl::PointXYZI>::Ptr> segmentCloud = pointProcessor->SegmentPlane_OwnRANSAC(inputCloud, 25, 0.3);
 
     // renderPointCloud(viewer, segmentCloud.first, "obstacle",Color(1,0,0));
-    // renderPointCloud(viewer, segmentCloud.second, "planeCloud",Color(0,1,0)); 
+    renderPointCloud(viewer, segmentCloud.second, "planeCloud",Color(0,1,0)); 
 
-    std::vector<pcl::PointCloud<pcl::PointXYZI>::Ptr> cloudClusters = pointProcessor->Clustering(segmentCloud.first, 0.53, 10, 500);
+
+    // // "clustering object" based on PCL RANSAC or Own RANSAC
+    // std::vector<pcl::PointCloud<pcl::PointXYZI>::Ptr> cloudClusters = pointProcessor->Clustering(segmentCloud.first, 0.53, 10, 500);
+    // std::vector<pcl::PointCloud<pcl::PointXYZI>::Ptr> cloudClusters = pointProcessor->Clustering_Own(segmentCloud.first, 0.53, 10, 500);
+        std::vector<pcl::PointCloud<pcl::PointXYZI>::Ptr> cloudClusters = pointProcessor->Clustering_Own(segmentCloud.first, 0.53, 15, 450);
 
     int clusterId = 0;
     std::vector<Color> colors = {Color(1,0,0), Color(1,1,0), Color(0,0,1)};
+
     for(pcl::PointCloud<pcl::PointXYZI>::Ptr cluster : cloudClusters)
     {
         std::cout << "cluster size ";
@@ -161,37 +170,53 @@ int main (int argc, char** argv)
     std::cout << "starting enviroment" << std::endl;
 
     pcl::visualization::PCLVisualizer::Ptr viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
-    CameraAngle setAngle = XY;
+    CameraAngle setAngle = FPS;
     initCamera(setAngle, viewer);
 
-    bool simple = false;
-    bool city = false;
-    if(simple)
-        simpleHighway(viewer);
-    if(city)
-        cityBlock(viewer);
 
+    // // [PCD single Frame]
+    // // ===============================================
+
+    // // enable one function
+    // simpleHighway(viewer);
+    // cityBlock(viewer);
+
+    // while (!viewer->wasStopped ())
+    // {
+    //     viewer->spinOnce ();
+    // } 
+    // // ===============================================
+
+
+
+    // // [Stream the PCD data]
+    // // ===============================================
     ProcessPointClouds<pcl::PointXYZI>* pointProcessorI = new ProcessPointClouds<pcl::PointXYZI>();
-    // ProcessPointClouds<pcl::PointXYZI> pointProcessorI;
-    std::vector<boost::filesystem::path> stream = pointProcessorI->streamPcd("../src/sensors/data/pcd/data_2");
+    // // load data
+    // // * stream data: "../src/sensors/data/pcd/data_1"
+    // // * stream data for challenge (bicycle) "../src/sensors/data/pcd/data_2"
+    std::vector<boost::filesystem::path> stream = pointProcessorI->streamPcd("../src/sensors/data/pcd/data_1");
     auto streamIterator = stream.begin();
     pcl::PointCloud<pcl::PointXYZI>::Ptr inputCloudI;
-
+    // // ===============================================
 
     while (!viewer->wasStopped ())
     {
+
+        // // uncomment when Stream PCD data
+        // // ====
         // Clear viewer
         viewer->removeAllPointClouds();
         viewer->removeAllShapes();
 
         // Load pcd and run obstacle detection process
         inputCloudI = pointProcessorI->loadPcd((*streamIterator).string());
-        cityBlock_(viewer, pointProcessorI, inputCloudI);
+        cityBlock_stream(viewer, pointProcessorI, inputCloudI);
 
         streamIterator++;
         if(streamIterator == stream.end())
             streamIterator = stream.begin();
-
+        // // ====
         viewer->spinOnce ();
     } 
 }

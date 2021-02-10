@@ -64,6 +64,14 @@
         "set": "cpp",
         "string": "cpp",
         "core": "cpp",
-        "numericaldiff": "cpp"
-    }
+        "numericaldiff": "cpp",
+        "bit": "cpp",
+        "codecvt": "cpp",
+        "compare": "cpp",
+        "concepts": "cpp",
+        "ranges": "cpp",
+        "stop_token": "cpp",
+        "variant": "cpp"
+    },
+    "C_Cpp.errorSquiggles": "Disabled"
 }
